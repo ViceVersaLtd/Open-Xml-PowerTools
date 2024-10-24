@@ -3199,7 +3199,7 @@ namespace OpenXmlPowerTools.HtmlToWml
         private static XElement GetCellWidth(XElement element)
         {
             CssExpression width = element.GetProp("width");
-            if (width.IsAuto)
+            if (width == null || width.IsAuto)
             {
                 return new XElement(W.tcW,
                     new XAttribute(W._w, "0"),
@@ -3374,7 +3374,7 @@ namespace OpenXmlPowerTools.HtmlToWml
                         XElement cell = tableArray[r][c];
                         CssExpression width = cell.GetProp("width");
                         XAttribute colSpan = cell.Attribute(XhtmlNoNamespace.colspan);
-                        if (colSpan == null && columnWidth.ToString() == "auto" && width.ToString() != "auto")
+                        if (colSpan == null && columnWidth.ToString() == "auto" && width!=null && width.ToString() != "auto")
                         {
                             columnWidth = width;
                             break;
