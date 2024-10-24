@@ -17,7 +17,7 @@ variables:
   Patch: $(Build.BuildNumber)
 
 steps:
-- script: dotnet build --configuration $(buildConfiguration)
+- script: dotnet build OpenXmlPowerTools/OpenXmlPowerTools.csproj --configuration $(buildConfiguration)
   displayName: 'dotnet build $(buildConfiguration)'
 
 - task: DotNetCoreCLI@2
