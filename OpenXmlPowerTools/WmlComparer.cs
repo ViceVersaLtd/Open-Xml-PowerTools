@@ -12,7 +12,9 @@ using System.Globalization;
 using System.IO;
 using System.IO.Packaging;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
+using DocumentFormat.OpenXml.Experimental;
 using DocumentFormat.OpenXml.Packaging;
 using System.Drawing;
 using System.Security.Cryptography;
@@ -280,7 +282,7 @@ namespace OpenXmlPowerTools
                         .Root
                         .Descendants()
                         .Where(d => d.Name == W.p || d.Name == W.tbl || d.Name == W.tr)
-                        .ToDictionary(d => (string)d.Attribute(PtOpenXml.Unid));
+                        .ToDictionary(EnsureUnid);
 
                     var afterProcMainXDoc = wDocAfterProc
                         .MainDocumentPart
@@ -1338,10 +1340,10 @@ namespace OpenXmlPowerTools
             ConsolidationInfo consolidationInfo,
             WmlComparerSettings settings)
         {
-            Package packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.Package;
-            Package packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage.Package;
-            PackagePart partInDeletedDocument = packageOfDeletedContent.GetPart(wDocDelta.MainDocumentPart.Uri);
-            PackagePart partInNewDocument = packageOfNewContent.GetPart(consolidatedWDoc.MainDocumentPart.Uri);
+            var packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.GetPackage();
+            var packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage.GetPackage();
+            var partInDeletedDocument = packageOfDeletedContent.GetPart(wDocDelta.MainDocumentPart.Uri);
+            var partInNewDocument = packageOfNewContent.GetPart(consolidatedWDoc.MainDocumentPart.Uri);
             consolidationInfo.RevisionElement = MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, consolidationInfo.RevisionElement);
 
             var clonedForHashing = (XElement)CloneBlockLevelContentForHashing(consolidatedWDoc.MainDocumentPart, consolidationInfo.RevisionElement, false, settings);
@@ -1920,8 +1922,23 @@ namespace OpenXmlPowerTools
 
         private static void CopyMissingStylesFromOneDocToAnother(WordprocessingDocument wDocFrom, WordprocessingDocument wDocTo)
         {
-            var revisionsStylesXDoc = wDocTo.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
-            var afterStylesXDoc = wDocFrom.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            XDocument revisionsStylesXDoc;
+            XDocument afterStylesXDoc;
+
+            try
+            {
+                if (wDocFrom.MainDocumentPart?.StyleDefinitionsPart == null ||
+                    wDocTo.MainDocumentPart?.StyleDefinitionsPart == null)
+                    return;
+
+                revisionsStylesXDoc = wDocTo.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+                afterStylesXDoc = wDocFrom.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            }
+            catch (XmlException)
+            {
+                return;
+            }
+
             foreach (var style in afterStylesXDoc.Root.Elements(W.style))
             {
                 var type = (string)style.Attribute(W.type);
@@ -2700,12 +2717,25 @@ namespace OpenXmlPowerTools
             XDocument mainDocumentXDoc,
             WmlComparerSettings settings)
         {
-            var footnotesPartBefore = mainDocumentPartBefore.FootnotesPart;
-            var endnotesPartBefore = mainDocumentPartBefore.EndnotesPart;
-            var footnotesPartAfter = mainDocumentPartAfter.FootnotesPart;
-            var endnotesPartAfter = mainDocumentPartAfter.EndnotesPart;
-            var footnotesPartWithRevisions = mainDocumentPartWithRevisions.FootnotesPart;
-            var endnotesPartWithRevisions = mainDocumentPartWithRevisions.EndnotesPart;
+            FootnotesPart footnotesPartBefore = null;
+            EndnotesPart endnotesPartBefore = null;
+            FootnotesPart footnotesPartAfter = null;
+            EndnotesPart endnotesPartAfter = null;
+            FootnotesPart footnotesPartWithRevisions = null;
+            EndnotesPart endnotesPartWithRevisions = null;
+
+            try { footnotesPartBefore = mainDocumentPartBefore.FootnotesPart; }
+            catch (XmlException) { }
+            try { endnotesPartBefore = mainDocumentPartBefore.EndnotesPart; }
+            catch (XmlException) { }
+            try { footnotesPartAfter = mainDocumentPartAfter.FootnotesPart; }
+            catch (XmlException) { }
+            try { endnotesPartAfter = mainDocumentPartAfter.EndnotesPart; }
+            catch (XmlException) { }
+            try { footnotesPartWithRevisions = mainDocumentPartWithRevisions.FootnotesPart; }
+            catch (XmlException) { }
+            try { endnotesPartWithRevisions = mainDocumentPartWithRevisions.EndnotesPart; }
+            catch (XmlException) { }
 
             XDocument footnotesPartBeforeXDoc = null;
             if (footnotesPartBefore != null)
@@ -2949,7 +2979,7 @@ namespace OpenXmlPowerTools
 
                 if (deepestAncestorName == W.footnote || deepestAncestorName == W.endnote)
                 {
-                    deepestAncestorUnid = (string)deepestAncestor.Attribute(PtOpenXml.Unid);
+                    deepestAncestorUnid = EnsureUnid(deepestAncestor);
                 }
             }
 
@@ -2977,13 +3007,7 @@ namespace OpenXmlPowerTools
                         // my hypothesis is that these ancestor unids should be the same for all content unit atoms within that paragraph.
                         currentAncestorUnids = cua
                             .AncestorElements
-                            .Select(ae =>
-                            {
-                                var thisUnid = (string)ae.Attribute(PtOpenXml.Unid);
-                                if (thisUnid == null)
-                                    throw new OpenXmlPowerToolsException("Internal error");
-                                return thisUnid;
-                            })
+                            .Select(EnsureUnid)
                             .ToArray();
                         cua.AncestorUnids = currentAncestorUnids;
                         if (deepestAncestorUnid != null)
@@ -3058,13 +3082,7 @@ namespace OpenXmlPowerTools
 
                         currentAncestorUnids = cua
                             .AncestorElements
-                            .Select(ae =>
-                            {
-                                var thisUnid = (string)ae.Attribute(PtOpenXml.Unid);
-                                if (thisUnid == null)
-                                    throw new OpenXmlPowerToolsException("Internal error");
-                                return thisUnid;
-                            })
+                            .Select(EnsureUnid)
                             .ToArray();
                         cua.AncestorUnids = currentAncestorUnids;
                         continue;
@@ -3353,10 +3371,114 @@ namespace OpenXmlPowerTools
 
                     var footnotesRevisionList = GetFootnoteEndnoteRevisionList(wDoc.MainDocumentPart.FootnotesPart, W.footnote, settings);
                     var endnotesRevisionList = GetFootnoteEndnoteRevisionList(wDoc.MainDocumentPart.EndnotesPart, W.endnote, settings);
-                    var finalRevisionList = mainDocPartRevisionList.Concat(footnotesRevisionList).Concat(endnotesRevisionList).ToList();
+                    var collapsedMainDocPartRevisionList = CollapseShiftedAlternatingRevisions(mainDocPartRevisionList);
+                    var finalRevisionList = collapsedMainDocPartRevisionList.Concat(footnotesRevisionList).Concat(endnotesRevisionList).ToList();
                     return finalRevisionList;
                 }
             }
+        }
+
+        private static List<WmlComparerRevision> CollapseShiftedAlternatingRevisions(List<WmlComparerRevision> revisions)
+        {
+            if (revisions.Count < 4)
+                return revisions;
+
+            var collapsed = new List<WmlComparerRevision>();
+            var i = 0;
+            while (i < revisions.Count)
+            {
+                var run = new List<WmlComparerRevision> { revisions[i] };
+                var expected = revisions[i].RevisionType == WmlComparerRevisionType.Deleted
+                    ? WmlComparerRevisionType.Inserted
+                    : WmlComparerRevisionType.Deleted;
+
+                var j = i + 1;
+                while (j < revisions.Count)
+                {
+                    var r = revisions[j];
+                    if (r.RevisionType != expected)
+                        break;
+                    if (r.Author != run[0].Author ||
+                        r.Date != run[0].Date ||
+                        r.PartUri != run[0].PartUri ||
+                        r.PartContentType != run[0].PartContentType)
+                        break;
+
+                    run.Add(r);
+                    expected = expected == WmlComparerRevisionType.Deleted
+                        ? WmlComparerRevisionType.Inserted
+                        : WmlComparerRevisionType.Deleted;
+                    j++;
+                }
+
+                if (TryCollapseShiftRun(run, out var simplified))
+                    collapsed.AddRange(simplified);
+                else
+                    collapsed.AddRange(run);
+
+                i = j;
+            }
+
+            return collapsed;
+        }
+
+        private static bool TryCollapseShiftRun(List<WmlComparerRevision> run, out List<WmlComparerRevision> simplified)
+        {
+            simplified = null;
+            // Require at least three alternating pairs to avoid collapsing common two-pair edits.
+            if (run.Count < 6 || run.Count % 2 != 0)
+                return false;
+
+            var startsWithDelete = run[0].RevisionType == WmlComparerRevisionType.Deleted;
+            if (startsWithDelete)
+            {
+                var dels = run.Where((r, idx) => idx % 2 == 0).ToList();
+                var ins = run.Where((r, idx) => idx % 2 == 1).ToList();
+                if (!LooksLikeShift(dels, ins))
+                    return false;
+
+                simplified = new List<WmlComparerRevision>
+                {
+                    ins[0],
+                    dels[dels.Count - 1],
+                };
+                return true;
+            }
+            else
+            {
+                var ins = run.Where((r, idx) => idx % 2 == 0).ToList();
+                var dels = run.Where((r, idx) => idx % 2 == 1).ToList();
+                if (!LooksLikeShift(ins, dels))
+                    return false;
+
+                simplified = new List<WmlComparerRevision>
+                {
+                    dels[0],
+                    ins[ins.Count - 1],
+                };
+                return true;
+            }
+        }
+
+        private static bool LooksLikeShift(List<WmlComparerRevision> lead, List<WmlComparerRevision> lag)
+        {
+            if (lead.Count != lag.Count)
+                return false;
+            if (lead.Count < 3)
+                return false;
+
+            if (lead[0].Text == lag[0].Text)
+                return false;
+            if (lead[lead.Count - 1].Text == lag[lag.Count - 1].Text)
+                return false;
+
+            for (var i = 1; i < lag.Count; i++)
+            {
+                if (lag[i].Text != lead[i - 1].Text)
+                    return false;
+            }
+
+            return true;
         }
 
         private static IEnumerable<WmlComparerRevision> GetFootnoteEndnoteRevisionList(OpenXmlPart footnotesEndnotesPart,
@@ -4605,10 +4727,10 @@ namespace OpenXmlPowerTools
                                         var openXmlPartInNewDocument = part;
                                         return gc.Select(gce =>
                                         {
-                                            Package packageOfDeletedContent = openXmlPartOfDeletedContent.OpenXmlPackage.Package;
-                                            Package packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.Package;
-                                            PackagePart partInDeletedDocument = packageOfDeletedContent.GetPart(part.Uri);
-                                            PackagePart partInNewDocument = packageOfNewContent.GetPart(part.Uri);
+                                            var packageOfDeletedContent = openXmlPartOfDeletedContent.OpenXmlPackage.GetPackage();
+                                            var packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.GetPackage();
+                                            var partInDeletedDocument = packageOfDeletedContent.GetPart(part.Uri);
+                                            var partInNewDocument = packageOfNewContent.GetPart(part.Uri);
                                             return MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, newDrawing);
                                         });
                                     });
@@ -4624,10 +4746,10 @@ namespace OpenXmlPowerTools
                                         var openXmlPartInNewDocument = part;
                                         return gc.Select(gce =>
                                         {
-                                            Package packageOfSourceContent = openXmlPartOfInsertedContent.OpenXmlPackage.Package;
-                                            Package packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.Package;
-                                            PackagePart partInDeletedDocument = packageOfSourceContent.GetPart(part.Uri);
-                                            PackagePart partInNewDocument = packageOfNewContent.GetPart(part.Uri);
+                                            var packageOfSourceContent = openXmlPartOfInsertedContent.OpenXmlPackage.GetPackage();
+                                            var packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.GetPackage();
+                                            var partInDeletedDocument = packageOfSourceContent.GetPart(part.Uri);
+                                            var partInNewDocument = packageOfNewContent.GetPart(part.Uri);
                                             return MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, newDrawing);
                                         });
                                     });
@@ -4740,7 +4862,7 @@ namespace OpenXmlPowerTools
             return elementList;
         }
 
-        private static XElement MoveRelatedPartsToDestination(PackagePart partOfDeletedContent, PackagePart partInNewDocument,
+        private static XElement MoveRelatedPartsToDestination(IPackagePart partOfDeletedContent, IPackagePart partInNewDocument,
             XElement contentElement)
         {
             var elementsToUpdate = contentElement
@@ -4758,9 +4880,9 @@ namespace OpenXmlPowerTools
                 {
                     var rId = (string)att;
 
-                    var relationshipForDeletedPart = partOfDeletedContent.GetRelationship(rId);
-                    if (relationshipForDeletedPart == null)
+                    if (!partOfDeletedContent.Relationships.Contains(rId))
                         throw new FileFormatException("Invalid document");
+                    var relationshipForDeletedPart = partOfDeletedContent.Relationships[rId];
 
                     var tartString = relationshipForDeletedPart.TargetUri.ToString();
 
@@ -4800,24 +4922,24 @@ namespace OpenXmlPowerTools
                         else
                             uri = new Uri(uriString, UriKind.Relative);
 
-                        var newPart = partInNewDocument.Package.CreatePart(uri, relatedPackagePart.ContentType);
-                        using (var oldPartStream = relatedPackagePart.GetStream())
-                        using (var newPartStream = newPart.GetStream())
+                        var newPart = partInNewDocument.Package.CreatePart(uri, relatedPackagePart.ContentType, CompressionOption.Normal);
+                        using (var oldPartStream = relatedPackagePart.GetStream(FileMode.Open, FileAccess.Read))
+                        using (var newPartStream = newPart.GetStream(FileMode.Create, FileAccess.ReadWrite))
                             FileUtils.CopyStream(oldPartStream, newPartStream);
 
                         var newRid = "R" + Guid.NewGuid().ToString().Replace("-", "");
-                        partInNewDocument.CreateRelationship(newPart.Uri, TargetMode.Internal, relationshipForDeletedPart.RelationshipType, newRid);
+                        partInNewDocument.Relationships.Create(newPart.Uri, TargetMode.Internal, relationshipForDeletedPart.RelationshipType, newRid);
                         att.Value = newRid;
 
                         if (newPart.ContentType.EndsWith("xml"))
                         {
                             XDocument newPartXDoc = null;
-                            using (var stream = newPart.GetStream())
+                            using (var stream = newPart.GetStream(FileMode.Open, FileAccess.Read))
                             {
                                 newPartXDoc = XDocument.Load(stream);
                                 MoveRelatedPartsToDestination(relatedPackagePart, newPart, newPartXDoc.Root);
                             }
-                            using (var stream = newPart.GetStream())
+                            using (var stream = newPart.GetStream(FileMode.Create, FileAccess.ReadWrite))
                                 newPartXDoc.Save(stream);
                         }
                     }
@@ -5007,13 +5129,7 @@ namespace OpenXmlPowerTools
                         break;
                     }
                     var unidList = relevantAncestors
-                        .Select(a =>
-                        {
-                            var unid = (string)a.Attribute(PtOpenXml.Unid);
-                            if (unid == null)
-                                throw new OpenXmlPowerToolsException("Internal error");
-                            return unid;
-                        })
+                        .Select(EnsureUnid)
                         .ToArray();
                     foreach (var da in da2)
                     {
@@ -5027,14 +5143,10 @@ namespace OpenXmlPowerTools
 
                         foreach (var z in zipped)
                         {
-                            var unid = z.Ancestor.Attribute(PtOpenXml.Unid);
-
                             if (z.Ancestor.Name == W.footnotes || z.Ancestor.Name == W.endnotes)
                                 continue;
 
-                            if (unid == null)
-                                throw new OpenXmlPowerToolsException("Internal error");
-                            unid.Value = z.Unid;
+                            z.Ancestor.SetAttributeValue(PtOpenXml.Unid, z.Unid);
                         }
                     }
                 }
@@ -7075,6 +7187,17 @@ namespace OpenXmlPowerTools
                     d.Add(newAtt);
                 }
             }
+        }
+
+        private static string EnsureUnid(XElement element)
+        {
+            var unid = (string)element.Attribute(PtOpenXml.Unid);
+            if (unid != null)
+                return unid;
+
+            unid = Guid.NewGuid().ToString().Replace("-", "");
+            element.SetAttributeValue(PtOpenXml.Unid, unid);
+            return unid;
         }
     }
 

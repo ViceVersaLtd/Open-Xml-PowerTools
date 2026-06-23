@@ -2512,7 +2512,8 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
             foreach (var attributeName in RelationshipMarkup[elementToModify])
             {
                 var elementsToUpdate = newContent
-                    .Descendants(elementToModify)
+                    .Where(e => e.Name == elementToModify)
+                    .Concat(newContent.Descendants(elementToModify))
                     .Where(e => (string)e.Attribute(attributeName) == oldRid);
                 foreach (var element in elementsToUpdate)
                     element.Attribute(attributeName).Value = newRid;
@@ -3108,18 +3109,6 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
             if (string.IsNullOrEmpty(relId))
                 return;
 
-            // First look to see if this relId has already been added to the new document.
-            // This is necessary for those parts that get processed with both old and new ids, such as the comments
-            // part.  This is not necessary for parts such as the main document part, but this code won't malfunction
-            // in that case.
-            var tempPartIdPair5 = newContentPart.Parts.FirstOrDefault(p => p.RelationshipId == relId);
-            if (tempPartIdPair5 != null)
-                return;
-
-            ExternalRelationship tempEr5 = newContentPart.ExternalRelationships.FirstOrDefault(er => er.Id == relId);
-            if (tempEr5 != null)
-                return;
-
             var ipp2 = oldContentPart.Parts.FirstOrDefault(ipp => ipp.RelationshipId == relId);
             if (ipp2 != null)
             {
@@ -3182,10 +3171,10 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
                         }).RelationshipId;
                         return;
                     }
-                    var g = new Guid();
+                    var g = Guid.NewGuid();
                     var newId = $"R{g:N}".Substring(0, 16);
                     newContentPart.CreateRelationshipToPart(temp.ImagePart, newId);
-                    imageReference.Attribute(R.id).Value = newId;
+                    imageReference.Attribute(attributeName).Value = newId;
                 }
             }
             else
@@ -3194,7 +3183,8 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
                 if (er != null)
                 {
                     ExternalRelationship newEr = newContentPart.AddExternalRelationship(er.RelationshipType, er.Uri);
-                    imageReference.Attribute(R.id).Value = newEr.Id;
+                    imageReference.Attribute(attributeName).Value = newEr.Id;
+                    return;
                 }
                 throw new DocumentBuilderInternalException("Source {0} is unsupported document - contains reference to NULL image");
             }
@@ -3217,17 +3207,6 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
             {
                 // dm attribute
                 string relId = diagramReference.Attribute(R.dm).Value;
-                var ipp = newContentPart.Parts.FirstOrDefault(p => p.RelationshipId == relId);
-                if (ipp != null)
-                {
-                    OpenXmlPart tempPart = ipp.OpenXmlPart;
-                    continue;
-                }
-
-                ExternalRelationship tempEr = newContentPart.ExternalRelationships.FirstOrDefault(er2 => er2.Id == relId);
-                if (tempEr != null)
-                    continue;
-
                 OpenXmlPart oldPart = oldContentPart.GetPartById(relId);
                 OpenXmlPart newPart = newContentPart.AddNewPart<DiagramDataPart>();
                 newPart.GetXDocument().Add(oldPart.GetXDocument().Root);
@@ -3237,18 +3216,6 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
 
                 // lo attribute
                 relId = diagramReference.Attribute(R.lo).Value;
-                var ipp2 = newContentPart.Parts.FirstOrDefault(z => z.RelationshipId == relId);
-                if (ipp2 != null)
-                {
-                    OpenXmlPart tempPart = ipp2.OpenXmlPart;
-                    continue;
-                }
-
-
-                ExternalRelationship tempEr4 = newContentPart.ExternalRelationships.FirstOrDefault(er3 => er3.Id == relId);
-                if (tempEr4 != null)
-                    continue;
-
                 oldPart = oldContentPart.GetPartById(relId);
                 newPart = newContentPart.AddNewPart<DiagramLayoutDefinitionPart>();
                 newPart.GetXDocument().Add(oldPart.GetXDocument().Root);
@@ -3258,17 +3225,6 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
 
                 // qs attribute
                 relId = diagramReference.Attribute(R.qs).Value;
-                var ipp5 = newContentPart.Parts.FirstOrDefault(z => z.RelationshipId == relId);
-                if (ipp5 != null)
-                {
-                    OpenXmlPart tempPart = ipp5.OpenXmlPart;
-                    continue;
-                }
-
-                ExternalRelationship tempEr5 = newContentPart.ExternalRelationships.FirstOrDefault(z => z.Id == relId);
-                if (tempEr5 != null)
-                    continue;
-
                 oldPart = oldContentPart.GetPartById(relId);
                 newPart = newContentPart.AddNewPart<DiagramStylePart>();
                 newPart.GetXDocument().Add(oldPart.GetXDocument().Root);
@@ -3278,17 +3234,6 @@ application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml
 
                 // cs attribute
                 relId = diagramReference.Attribute(R.cs).Value;
-                var ipp6 = newContentPart.Parts.FirstOrDefault(z => z.RelationshipId == relId);
-                if (ipp6 != null)
-                {
-                    OpenXmlPart tempPart = ipp6.OpenXmlPart;
-                    continue;
-                }
-
-                ExternalRelationship tempEr6 = newContentPart.ExternalRelationships.FirstOrDefault(z => z.Id == relId);
-                if (tempEr6 != null)
-                    continue;
-
                 oldPart = oldContentPart.GetPartById(relId);
                 newPart = newContentPart.AddNewPart<DiagramColorsPart>();
                 newPart.GetXDocument().Add(oldPart.GetXDocument().Root);

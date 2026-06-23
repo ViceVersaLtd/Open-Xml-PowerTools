@@ -97,6 +97,9 @@ namespace OpenXmlPowerTools
             XDocument partXDocument = part.GetXDocument();
             if (partXDocument != null)
             {
+                if (PowerToolsBlockStateTracker.IsActive(part.OpenXmlPackage))
+                    return;
+
 #if true
                 using (Stream partStream = part.GetStream(FileMode.Create, FileAccess.Write))
                 using (XmlWriter partXmlWriter = XmlWriter.Create(partStream))
@@ -116,6 +119,9 @@ namespace OpenXmlPowerTools
             XDocument partXDocument = part.GetXDocument();
             if (partXDocument != null)
             {
+                if (PowerToolsBlockStateTracker.IsActive(part.OpenXmlPackage))
+                    return;
+
                 using (Stream partStream = part.GetStream(FileMode.Create, FileAccess.Write))
                 {
                     XmlWriterSettings settings = new XmlWriterSettings();
@@ -133,9 +139,12 @@ namespace OpenXmlPowerTools
             if (part == null) throw new ArgumentNullException("part");
             if (document == null) throw new ArgumentNullException("document");
 
-            using (Stream partStream = part.GetStream(FileMode.Create, FileAccess.Write))
-            using (XmlWriter partXmlWriter = XmlWriter.Create(partStream))
-                document.Save(partXmlWriter);
+            if (!PowerToolsBlockStateTracker.IsActive(part.OpenXmlPackage))
+            {
+                using (Stream partStream = part.GetStream(FileMode.Create, FileAccess.Write))
+                using (XmlWriter partXmlWriter = XmlWriter.Create(partStream))
+                    document.Save(partXmlWriter);
+            }
 
             part.RemoveAnnotations<XDocument>();
             part.AddAnnotation(document);

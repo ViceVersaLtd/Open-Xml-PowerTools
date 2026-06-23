@@ -104,6 +104,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Linq;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using OpenXmlPowerTools;
 using OpenXmlPowerTools.HtmlToWml;
@@ -2313,7 +2314,7 @@ namespace OpenXmlPowerTools.HtmlToWml
 
             MainDocumentPart mdp = wDoc.MainDocumentPart;
             string rId = "R" + Guid.NewGuid().ToString().Replace("-", "");
-            ImagePartType ipt = ImagePartType.Png;
+            PartTypeInfo ipt = ImagePartType.Png;
             ImagePart newPart = mdp.AddImagePart(ipt, rId);
             using (Stream s = newPart.GetStream(FileMode.Create, FileAccess.ReadWrite))
                 s.Write(ba, 0, ba.GetUpperBound(0) + 1);

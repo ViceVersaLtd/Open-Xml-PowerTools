@@ -3,12 +3,51 @@
 
 using System;
 using System.Linq;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Xml;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
 
 namespace OpenXmlPowerTools
 {
+    internal static class PowerToolsBlockStateTracker
+    {
+        private sealed class State
+        {
+            public int Depth;
+        }
+
+        private static readonly ConditionalWeakTable<OpenXmlPackage, State> ActivePackages =
+            new ConditionalWeakTable<OpenXmlPackage, State>();
+
+        public static void Enter(OpenXmlPackage package)
+        {
+            var state = ActivePackages.GetOrCreateValue(package);
+            state.Depth++;
+        }
+
+        public static bool Exit(OpenXmlPackage package)
+        {
+            if (!ActivePackages.TryGetValue(package, out State state))
+                return true;
+
+            state.Depth--;
+            if (state.Depth > 0)
+                return false;
+
+            ActivePackages.Remove(package);
+            return true;
+        }
+
+        public static bool IsActive(OpenXmlPackage package)
+        {
+            return package != null &&
+                ActivePackages.TryGetValue(package, out State state) &&
+                state.Depth > 0;
+        }
+    }
+
     public static class PowerToolsBlockExtensions
     {
         /// <summary>
@@ -34,6 +73,7 @@ namespace OpenXmlPowerTools
 
             package.RemovePowerToolsAnnotations();
             package.Save();
+            PowerToolsBlockStateTracker.Enter(package);
         }
 
         /// <summary>
@@ -49,9 +89,18 @@ namespace OpenXmlPowerTools
         {
             if (package == null) throw new ArgumentNullException("package");
 
-            foreach (OpenXmlPart part in package.GetAllParts())
+            if (!PowerToolsBlockStateTracker.Exit(package))
+                return;
+
+            List<OpenXmlPart> changedParts = package
+                .GetAllParts()
+                .Where(part => part.Annotations<XDocument>().Any())
+                .ToList();
+
+            foreach (OpenXmlPart part in changedParts)
             {
-                if (part.Annotations<XDocument>().Any() && part.RootElement != null)
+                part.PutXDocument();
+                if (part.RootElement != null)
                     part.RootElement.Reload();
             }
         }
