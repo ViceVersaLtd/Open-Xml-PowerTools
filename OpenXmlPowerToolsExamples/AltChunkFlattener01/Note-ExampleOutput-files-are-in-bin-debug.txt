@@ -1,0 +1,2 @@
+Example output files are written to a timestamped directory in the current working directory (not bin).
+Run the example to produce CatABldgStandards-Flattened.docx and inspect it.
