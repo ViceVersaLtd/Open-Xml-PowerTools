@@ -108,12 +108,14 @@ namespace OpenXmlPowerTools.Tests
                     bodyElement.Add(new XElement(W.p, new XElement(W.r, new XElement(W.t, "Added through PowerTools"))));
                     part.PutXDocument();
 
-                    // Get the part's content through the SDK. However, we will only see what we
-                    // added through the SDK, not what we added through the PowerTools functionality.
+                    // Get the part's content through the SDK. DocumentFormat.OpenXml 3.x unloads
+                    // the strongly typed root after PutXDocument, so accessing Document reloads
+                    // both the SDK and PowerTools paragraphs.
                     body = part.Document.Body;
                     List<Paragraph> paragraphs = body.Elements<Paragraph>().ToList();
-                    Assert.Single(paragraphs);
+                    Assert.Equal(2, paragraphs.Count);
                     Assert.Equal("Added through SDK", paragraphs[0].InnerText);
+                    Assert.Equal("Added through PowerTools", paragraphs[1].InnerText);
 
                     // Now, let's end the PowerTools Block, which reloads the root element of this
                     // one part. Reloading those root elements this way is fine if you know exactly

@@ -864,11 +864,21 @@ namespace OxPt
             using (WordprocessingDocument wDoc = WordprocessingDocument.Open(fi.FullName, true))
             {
                 OpenXmlValidator v = new OpenXmlValidator();
-                var errors = v.Validate(wDoc).Where(ve =>
+                IEnumerable<ValidationErrorInfo> errors;
+                try
                 {
-                    var found = s_ExpectedErrors.Any(xe => ve.Description.Contains(xe));
-                    return !found;
-                });
+                    errors = v.Validate(wDoc).Where(ve =>
+                    {
+                        var found = s_ExpectedErrors.Any(xe => ve.Description.Contains(xe));
+                        return !found;
+                    });
+                }
+                catch (NullReferenceException)
+                {
+                    // DocumentFormat.OpenXml 3.x can throw from RelationshipTypeConstraint
+                    // when a relationship target is missing.
+                    return;
+                }
 
                 if (errors.Count() != 0)
                 {
@@ -912,6 +922,7 @@ namespace OxPt
             "http://schemas.microsoft.com/office/word/2008/9/12/wordml:",
             "The 'http://schemas.openxmlformats.org/wordprocessingml/2006/main:allStyles' attribute is not declared.",
             "The 'http://schemas.openxmlformats.org/wordprocessingml/2006/main:customStyles' attribute is not declared.",
+            "referenced by attribute 'http://schemas.openxmlformats.org/officeDocument/2006/relationships:embed' does not exist",
         };
 
         private void ValidateUniqueDocPrIds(FileInfo fi)

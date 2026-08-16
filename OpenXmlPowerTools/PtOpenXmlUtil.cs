@@ -11,6 +11,7 @@ using System.Xml;
 using System.Linq;
 using System.Xml.Linq;
 using System.Collections.Generic;
+using DocumentFormat.OpenXml.Experimental;
 using DocumentFormat.OpenXml.Packaging;
 using System.Drawing;
 using Font = System.Drawing.Font;
@@ -106,6 +107,7 @@ namespace OpenXmlPowerTools
                 using (MemoryStream ms = new MemoryStream(array))
                     part.FeedData(ms);
 #endif
+                part.UnloadRootElement();
             }
         }
 
@@ -125,6 +127,7 @@ namespace OpenXmlPowerTools
                     using (XmlWriter partXmlWriter = XmlWriter.Create(partStream, settings))
                         partXDocument.Save(partXmlWriter);
                 }
+                part.UnloadRootElement();
             }
         }
 
@@ -139,6 +142,7 @@ namespace OpenXmlPowerTools
 
             part.RemoveAnnotations<XDocument>();
             part.AddAnnotation(document);
+            part.UnloadRootElement();
         }
 
         private static XmlNamespaceManager GetManagerFromXDocument(XDocument xDocument)
@@ -265,6 +269,15 @@ namespace OpenXmlPowerTools
                 AddPart(partList, p.OpenXmlPart);
 
             return partList.OrderBy(p => p.ContentType).ThenBy(p => p.Uri.ToString()).ToList();
+        }
+
+        /// <summary>
+        /// Gets the backing <see cref="IPackage"/> for an Open XML package.
+        /// </summary>
+        public static IPackage GetUnderlyingPackage(this OpenXmlPackage package)
+        {
+            if (package == null) throw new ArgumentNullException("package");
+            return package.GetPackage();
         }
 
         private static void AddPart(HashSet<OpenXmlPart> partList, OpenXmlPart part)
@@ -1910,6 +1923,11 @@ listSeparator
                 Media = new byte[s.Length];
                 s.Read(Media, 0, (int)s.Length);
             }
+        }
+
+        public Stream GetMediaStream()
+        {
+            return new MemoryStream(Media, writable: false);
         }
 
         public void AddContentPartRelTypeResourceIdTupple(OpenXmlPart contentPart, string relationshipType, string relationshipId)

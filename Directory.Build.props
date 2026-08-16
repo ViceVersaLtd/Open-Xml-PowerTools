@@ -6,5 +6,7 @@
 
   <PropertyGroup>
     <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\rules.ruleset</CodeAnalysisRuleSet>
+    <!-- IPackage APIs are experimental in DocumentFormat.OpenXml 3.x but required for low-level part work. -->
+    <NoWarn>$(NoWarn);OOXML0001</NoWarn>
   </PropertyGroup>
 </Project>

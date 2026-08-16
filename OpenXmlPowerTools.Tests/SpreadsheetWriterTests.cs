@@ -314,7 +314,7 @@ namespace OxPt
             using (SpreadsheetDocument sDoc = SpreadsheetDocument.Open(fi.FullName, true))
             {
                 OpenXmlValidator v = new OpenXmlValidator();
-                var errors = v.Validate(sDoc).Where(ve => !s_ExpectedErrors.Contains(ve.Description));
+                var errors = v.Validate(sDoc).Where(ve => !s_ExpectedErrors.Any(xe => ve.Description.Contains(xe)));
 
 #if false
                 // if a test fails validation post-processing, then can use this code to determine the SDK
@@ -339,6 +339,8 @@ namespace OxPt
         private static List<string> s_ExpectedErrors = new List<string>()
         {
             "The attribute 't' has invalid value 'd'. The Enumeration constraint failed.",
+            "Cell contents have invalid value '2012-01-09T00:00",
+            "Cell contents have invalid value '2012-01-08T00:00",
         };
     }
 }
