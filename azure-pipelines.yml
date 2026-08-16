@@ -6,6 +6,7 @@ name: $(BuildDefinitionName)_$(Year:yyyy).$(Month).$(DayOfMonth)$(Rev:.r)
 
 trigger:
 - main
+- vNext-Latest
 
 pool:
   vmImage: ubuntu-latest
@@ -30,12 +31,12 @@ steps:
 
 - task: NuGetCommand@2
   inputs:
-    command: 'push'    
+    command: 'push'
     packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
     nuGetFeedType: 'external'
     publishFeedCredentials: 'VV Baget'
 
 - task: PublishBuildArtifacts@1
   inputs:
-    pathtoPublish: '$(Build.ArtifactStagingDirectory)' 
+    pathtoPublish: '$(Build.ArtifactStagingDirectory)'
     artifactName: 'OpenXmlPowerTools.$(Build.BuildNumber)'
